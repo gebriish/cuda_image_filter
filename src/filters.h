@@ -10,6 +10,7 @@ void filter_run_histogram(const Params *p, const uint8_t *d_in, uint8_t *d_out, 
 void filter_run_brightness(const Params *p, const uint8_t *d_in, uint8_t *d_out, int w, int h);
 void filter_run_gamma(const Params *p, const uint8_t *d_in, uint8_t *d_out, int w, int h);
 void filter_run_median(const Params *p, const uint8_t *d_in, uint8_t *d_out, int w, int h);
+void filter_run_canny(const Params *p, const uint8_t *d_in, uint8_t *d_out, int w, int h);
 
 ////////////////////////////////////////////
 // Filter table
@@ -25,7 +26,8 @@ void filter_run_median(const Params *p, const uint8_t *d_in, uint8_t *d_out, int
   X(FILTER_HISTOGRAM_EQUALIZATION, "histogram",  "",                                    filter_run_histogram)  \
   X(FILTER_BRIGHTNESS,             "brightness", "-brightness:<-255..255>",             filter_run_brightness) \
   X(FILTER_GAMMA,                  "gamma",      "-gamma:<0.1-5.0>",                    filter_run_gamma)      \
-  X(FILTER_MEDIAN,                 "median",     "-radius:<1..255>",                    filter_run_median) 
+  X(FILTER_MEDIAN,                 "median",     "-radius:<1..255>",                    filter_run_median)     \
+  X(FILTER_CANNY,                  "canny",      "-radius:<1..255> -sigma:<float>",     filter_run_canny) 
 
 #define X(kind, ...) kind,
 enum FilterKind

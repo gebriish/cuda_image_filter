@@ -19,6 +19,7 @@
 #include "brightness.cu"
 #include "gamma.cu"
 #include "median.cu"
+#include "canny.cu"
 
 struct Image
 {

@@ -1,9 +1,13 @@
 #include "filters.h"
+#include <math.h>
+#include <stdio.h>
 
 __constant__ float c_weights[2 * MAX_RADIUS + 1];
 
 __global__ void
-blur_h_kernel(const uint8_t *in, float *tmp, int width, int height, int radius)
+blur_h_kernel(const uint8_t * __restrict__ in,
+              float * __restrict__ tmp,
+              int width, int height, int radius)
 {
   extern __shared__ uint8_t s_tile[];
   const int tile_w = BLOCK_X + 2 * radius;
@@ -45,7 +49,9 @@ blur_h_kernel(const uint8_t *in, float *tmp, int width, int height, int radius)
 }
 
 __global__ void
-blur_v_kernel(const float *tmp, uint8_t *out, int width, int height, int radius)
+blur_v_kernel(const float * __restrict__ tmp,
+              uint8_t * __restrict__ out,
+              int width, int height, int radius)
 {
   int x = blockIdx.x * BLOCK_X + threadIdx.x;
   int y = blockIdx.y * BLOCK_Y + threadIdx.y;
@@ -91,22 +97,40 @@ blur_upload_weights(int radius, float sigma)
 void
 filter_run_blur(const Params *p, const uint8_t *d_in, uint8_t *d_out, int w, int h)
 {
-  int radius  = p->radius;
+  int radius = clampi(p->radius, 0, MAX_RADIUS);
+  if (radius == 0)
+  {
+    cudaMemcpy(d_out, d_in, (size_t)w * h * 3 * sizeof(uint8_t), cudaMemcpyDeviceToDevice);
+    return;
+  }
+
   float sigma = p->sigma;
-  if (sigma <= 0.0f) sigma = radius / 3.0f;
+  if (sigma <= 0.0f) sigma = fmaxf((float)radius / 2.0f, 0.8f);
 
   blur_upload_weights(radius, sigma);
 
-  float *d_tmp = 0;
-  cudaMalloc(&d_tmp, (size_t)w * h * 3 * sizeof(float));
+  float *d_tmp = NULL;
+  cudaError_t err = cudaMalloc(&d_tmp, (size_t)w * h * 3 * sizeof(float));
+  if (err != cudaSuccess)
+  {
+    fprintf(stderr, "blur cudaMalloc failed: %s\n", cudaGetErrorString(err));
+    return;
+  }
 
   dim3 block(BLOCK_X, BLOCK_Y);
   dim3 grid = grid_for(w, h, block);
   size_t h_smem = (size_t)(BLOCK_X + 2 * radius) * BLOCK_Y * 3 * sizeof(uint8_t);
 
   blur_h_kernel<<<grid, block, h_smem>>>(d_in, d_tmp, w, h, radius);
-  blur_v_kernel<<<grid, block>>>(d_tmp, d_out, w, h, radius);
-  cudaDeviceSynchronize();
+  err = cudaGetLastError();
+  if (err != cudaSuccess)
+    fprintf(stderr, "blur_h_kernel launch failed: %s\n", cudaGetErrorString(err));
 
+  blur_v_kernel<<<grid, block>>>(d_tmp, d_out, w, h, radius);
+  err = cudaGetLastError();
+  if (err != cudaSuccess)
+    fprintf(stderr, "blur_v_kernel launch failed: %s\n", cudaGetErrorString(err));
+
+  cudaDeviceSynchronize();
   cudaFree(d_tmp);
 }

@@ -18,6 +18,7 @@
 #include "histogram.cu"
 #include "brightness.cu"
 #include "gamma.cu"
+#include "median.cu"
 
 struct Image
 {
